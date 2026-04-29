@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: metabase-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - metabase-network
+    restart: unless-stopped
+
+  metabase:
+    image: metabase/metabase:v0.60.3.2
+    container_name: metabase-app
+    environment:
+      MB_DB_TYPE: postgres
+      MB_DB_DBNAME: ${POSTGRES_DB}
+      MB_DB_PORT: 5432
+      MB_DB_USER: ${POSTGRES_USER}
+      MB_DB_PASS: ${POSTGRES_PASSWORD}
+      MB_DB_HOST: postgres
+      MB_ENCRYPTION_SECRET_KEY: ${MB_ENCRYPTION_SECRET_KEY}
+      MB_EXPERIMENTAL_ENABLE_MCP: true
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+    networks:
+      - metabase-network
+    restart: unless-stopped
+    volumes:
+      - metabase_data:/metabase-data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    environment:
+      # Bypass TLS verification for corporate SSL-inspection proxies.
+      # For production, mount your CA bundle instead:
+      #   volumes: [ "/path/to/ca.crt:/usr/local/share/ca-certificates/proxy-ca.crt:ro" ]
+      # and remove this variable.
+      OLLAMA_INSECURE: "true"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - metabase-network
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    ports:
+      - "8080:8080"
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      ENABLE_COMMUNITY_SHARING: "false"
+      ENABLE_MESSAGE_RATING: "true"
+    volumes:
+      - open-webui_data:/app/backend/data
+    depends_on:
+      - ollama
+      - metabase
+    networks:
+      - metabase-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  metabase_data:
+  ollama_data:
+  open-webui_data:
+
+networks:
+  metabase-network:
+    driver: bridge
