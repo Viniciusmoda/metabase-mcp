@@ -14,7 +14,7 @@ This project sets up a complete Metabase analytics environment with PostgreSQL a
 
 1. **Clone or navigate to this directory**
    ```bash
-   cd /path/to/metabase-ai
+   cd /path/to/metabase-mcp
    ```
 
 2. **Start the services**
@@ -250,7 +250,7 @@ Once you've connected Metabase to the database, try these queries:
 If you need to restart the Metabase setup process:
 ```bash
 docker-compose down -v
-docker volume rm metabase-ai_metabase_data
+docker volume rm metabase-mpc_metabase_data
 docker-compose up -d
 ```
 
