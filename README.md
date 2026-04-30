@@ -285,3 +285,172 @@ You can create dashboards showing:
 - Order patterns
 
 Happy exploring with Metabase! 🚀
+
+---
+
+## Running on a GCP VM
+
+### Prerequisites
+
+- A GCP VM already provisioned (e.g. `e2-standard-4`, 4 vCPU / 16 GB RAM recommended for running Ollama)
+- OS: Ubuntu 22.04 LTS (recommended)
+- Your local machine has `gcloud` CLI installed and authenticated
+
+---
+
+### Step 1 – Open firewall ports
+
+The services expose ports 3000 (Metabase), 8080 (Open WebUI), 11434 (Ollama), and 5432 (PostgreSQL). Open the ports you want accessible from your browser (at minimum 3000 and 8080):
+
+```bash
+gcloud compute firewall-rules create metabase-mcp-allow \
+  --allow tcp:3000,tcp:8080,tcp:11434 \
+  --target-tags metabase-mcp \
+  --description "Metabase MCP stack ports"
+```
+
+Then ensure your VM has the corresponding network tag:
+
+```bash
+gcloud compute instances add-tags YOUR_VM_NAME \
+  --tags metabase-mcp \
+  --zone YOUR_ZONE
+```
+
+> Do **not** open port 5432 publicly — PostgreSQL should only be accessible inside the VM.
+
+---
+
+### Step 2 – SSH into the VM
+
+```bash
+gcloud compute ssh YOUR_VM_NAME --zone YOUR_ZONE
+```
+
+---
+
+### Step 3 – Install Docker and Docker Compose
+
+```bash
+# Update packages
+sudo apt-get update && sudo apt-get upgrade -y
+
+# Install Docker
+curl -fsSL https://get.docker.com | sudo sh
+
+# Add your user to the docker group (avoids needing sudo)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# Verify Docker
+docker --version
+
+# Install Docker Compose v2 plugin
+sudo apt-get install -y docker-compose-plugin
+
+# Verify
+docker compose version
+```
+
+---
+
+### Step 4 – Clone the repository
+
+```bash
+git clone https://github.com/Viniciusmoda/metabase-mcp.git
+cd metabase-mcp
+```
+
+---
+
+### Step 5 – Create the environment file
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Update the values — at minimum change the secret keys:
+
+```env
+POSTGRES_DB=metabase_db
+POSTGRES_USER=metabase_user
+POSTGRES_PASSWORD=metabase_password_123
+MB_ENCRYPTION_SECRET_KEY=change-this-to-a-random-32-char-string
+WEBUI_SECRET_KEY=change-this-to-another-random-string
+```
+
+Save and exit (`Ctrl+O`, `Enter`, `Ctrl+X`).
+
+---
+
+### Step 6 – Start the services
+
+```bash
+docker compose up -d
+```
+
+Check all containers are running:
+
+```bash
+docker compose ps
+```
+
+All services should show `Up`. Metabase may take 1–2 minutes to become healthy on first boot.
+
+---
+
+### Step 7 – Pull an LLM model into Ollama
+
+```bash
+docker exec -it ollama ollama pull llama3.2
+```
+
+> On a CPU-only VM this download may take several minutes. Verify with:
+> ```bash
+> docker exec -it ollama ollama list
+> ```
+
+---
+
+### Step 8 – Get the VM's external IP
+
+```bash
+gcloud compute instances describe YOUR_VM_NAME \
+  --zone YOUR_ZONE \
+  --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
+```
+
+---
+
+### Step 9 – Access the services
+
+Replace `EXTERNAL_IP` with the IP from Step 8:
+
+| Service    | URL                          |
+|------------|------------------------------|
+| Metabase   | `http://EXTERNAL_IP:3000`    |
+| Open WebUI | `http://EXTERNAL_IP:8080`    |
+| Ollama API | `http://EXTERNAL_IP:11434`   |
+
+Follow the [Quick Start](#quick-start) and [Open WebUI + Metabase MCP Setup](#open-webui--metabase-mcp-setup) sections above to complete the configuration, using `EXTERNAL_IP` instead of `localhost`.
+
+> **Note for Step 4 (MCP connection):** When registering Metabase in Open WebUI, still use the internal Docker hostname:
+> - **URL**: `http://metabase-app:3000/api/mcp`
+>
+> This keeps traffic inside the Docker network regardless of the VM's external IP.
+
+---
+
+### Keeping the stack running after SSH disconnect
+
+The containers use `restart: unless-stopped`, so they will automatically restart if the VM reboots or Docker restarts. No extra configuration is needed.
+
+### Updating the stack
+
+```bash
+cd metabase-mcp
+git pull
+docker compose pull
+docker compose up -d
+```
