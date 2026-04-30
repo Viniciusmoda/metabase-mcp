@@ -135,7 +135,11 @@ If the connection shows red, click the refresh icon or re-enter the URL and save
 2. Go to **Settings → Tools**.
 3. Click **Add Connection** (or the `+` button) and fill in:
    - **URL**: `http://metabase-app:3000/api/mcp`
-   - **API Key**: paste the key from Step 3
+   - **Auth type**: `None`
+   - **Headers**: paste the following JSON, replacing the value with your API key from Step 3:
+     ```json
+     {"x-api-key": "<YOUR_API_KEY>"}
+     ```
 4. Click **Save** — Open WebUI will contact the MCP endpoint and discover all available Metabase tools automatically.
 
 > The URL uses the Docker service hostname `metabase-app` so the request stays inside the Docker network. Do **not** use `localhost:3000` here.
@@ -250,7 +254,7 @@ Once you've connected Metabase to the database, try these queries:
 If you need to restart the Metabase setup process:
 ```bash
 docker-compose down -v
-docker volume rm metabase-mpc_metabase_data
+docker volume rm metabase-mcp_metabase_data
 docker-compose up -d
 ```
 
